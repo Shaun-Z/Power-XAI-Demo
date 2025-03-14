@@ -152,7 +152,7 @@ class DistributionNetwork:
         """
         绘制配网拓扑图
         """
-        plt.figure(figsize=(12, 6))
+        plt.figure(figsize=(24, 12))
         plt.title(f"Network Topology - {self.filename}")
         plt.axis('off')
         plt.subplot(121)
@@ -194,8 +194,8 @@ class DistributionNetwork:
         voltage_outage_df = pd.DataFrame(self.V_outage, columns=[f'Bus_{i+2}' for i in range(self.n_buses-1)])  # Bus 1 is removed
         voltage_outage_df.to_csv(f'{output_dir}/voltage_data_outage.csv', index=False)
 
-        self.plot(f'{output_dir}/voltage_data.pdf')
-        self.draw_network(f'{output_dir}/network_topology.pdf')
+        self.plot(f'{output_dir}/voltage_data.png')
+        self.draw_network(f'{output_dir}/network_topology.png')
 
 if __name__ == '__main__':
     import argparse
