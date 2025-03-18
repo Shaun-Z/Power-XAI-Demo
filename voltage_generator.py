@@ -13,22 +13,43 @@ class DistributionNetwork:
         parser.add_argument('--file_path', '-f', type=str, default='./structure/Node8_loop.txt', help='Path to the network data file')
         parser.add_argument('--time_steps', '-t', type=int, default=1000, help='Number of time steps to simulate')
         parser.add_argument('--outage_branch', '-o', type=int, default=None, help='Index of the branch to simulate outage')
+        parser.add_argument('--shunt', '-s', type=float, default=0.001, help='Shunt admittance at each bus')
+        parser.add_argument('--admittance_range', type=float, nargs='+', default=[0.4,0.6], help='Range of branch admittance')
+        parser.add_argument('--indiv_current', '-i', action='store_true', help='Generate individual current injections')
         return parser
 
     def __init__(self, args):
         self.file_path = args.file_path
         self.time_steps = args.time_steps
         self.outage_branch_idx = args.outage_branch
+        self.shunt_value = args.shunt
 
         self.filename = self.file_path.split('/')[-1]
         self.structure = self._read_data(self.file_path)
         
         self.outage_pairs = []
         self.incidence_matrix = self.build_incidence_matrix(self.structure)
-        self.branch_admittance = self.get_branch_admittance(self.n_branches)
+        self.branch_admittance = self.get_branch_admittance(n_branches=self.n_branches, admittance_range=args.admittance_range)
         self.Y_e = np.diag(self.branch_admittance)
-        # Generate random current injections for non-slack buses (dimensions: time_steps x (n_buses - 1))
-        self.I = np.random.uniform(0, 0.2, size=(self.time_steps, self.n_buses-1))
+
+        if args.indiv_current:
+            # Generate random current injections for non-slack buses (dimensions: time_steps x (n_buses))
+            self.I = np.random.uniform(0, 0.2, size=(self.time_steps, self.n_buses-1))
+        else:
+            """Correlated"""
+            def generate_random_correlation_matrix(n):
+                A = np.random.randn(n, n)
+                cov_mat = A @ A.T
+                d = np.sqrt(np.diag(cov_mat))
+                corr = cov_mat / np.outer(d, d)
+                np.fill_diagonal(corr, 1.0)
+                return corr
+
+            mean = np.zeros(self.n_buses - 1)
+            corr = generate_random_correlation_matrix(self.n_buses - 1)
+            var = 0.2  # 设置每个 bus 的方差为 0.2
+            cov = corr * var
+            self.I = np.random.multivariate_normal(mean, cov, self.time_steps)
 
         self.V, self.Y_reduced = self.generate_voltage_data(self.I, self.incidence_matrix, self.Y_e)
 
@@ -63,8 +84,11 @@ class DistributionNetwork:
             A[i, tbus - 1] = -1  # 接收侧-1
         return A
     
-    def get_branch_admittance(self, n_branches=None):
-        return np.random.uniform(0.4, 0.6, size=n_branches)
+    def get_branch_admittance(self, n_branches, admittance_range):
+        """
+        生成随机的支路导纳，返回对角矩阵
+        """
+        return np.random.uniform(*admittance_range, size=n_branches)
 
     def compute_Y(self, A, Y_e, slack_bus=0):
         """
@@ -74,13 +98,25 @@ class DistributionNetwork:
         Y_reduced = np.delete(Y, slack_bus, axis=0)
         Y_reduced = np.delete(Y_reduced, slack_bus, axis=1)
         return Y_reduced
+    
+    # def compute_Y(self, A, Y_e):
+    #     """
+    #     计算母线导纳矩阵，采用公式：
+    #         Y = A^T * Y_e * A + Y_shunt
+    #     其中 Y_shunt 为各母线的并联导纳，取对角矩阵，保证 Y 非奇异。
+    #     """
+    #     Y_branch = A.T @ Y_e @ A
+    #     # 构造并联导纳矩阵，取每个母线上一个较小的正值（例如 self.shunt_value）
+    #     Y_shunt = np.diag(np.full(self.n_buses, self.shunt_value))
+    #     Y = Y_branch + Y_shunt
+    #     return Y
 
     def generate_voltage_data(self, I, A, Y_e):
         """
         根据公式 V = I * Y^{-1} 生成电压数据（平衡母线为Bus 1）
         返回计算得到的电压数据及降阶后的母线导纳矩阵
         """
-        Y_reduced = self.compute_Y(A, Y_e, slack_bus=0)
+        Y_reduced = self.compute_Y(A, Y_e)
         Y_inv = np.linalg.inv(Y_reduced)
 
         # I的尺寸为 (time_steps, n_buses-1)
@@ -113,8 +149,8 @@ class DistributionNetwork:
         # print("Branch Admittance Y_e:\n", np.diag(self.branch_admittance))
         print("Normal Operation - Mean Voltage per bus:\n", np.mean(self.V, axis=0))
         print("Outage Operation - Mean Voltage per bus:\n", np.mean(self.V_outage, axis=0))
-        print("Normal Operation - Voltage Covariance:\n", np.cov(self.V, rowvar=False))
-        print("Outage Operation - Voltage Covariance:\n", np.cov(self.V_outage, rowvar=False))
+        print(f"Normal Operation - Voltage Covariance:\tmax: {np.cov(self.V, rowvar=False).max()}\n{np.cov(self.V, rowvar=False)}")
+        print(f"Outage Operation - Voltage Covariance:\tmax: {np.cov(self.V, rowvar=False).max()}\n{np.cov(self.V_outage, rowvar=False)}")
         print("Buses #:\t", self.n_buses)
         print("Branches #:\t", self.n_branches)
         print("Outage Buses:\t", self.outage_pairs)
@@ -191,7 +227,7 @@ class DistributionNetwork:
         os.makedirs(output_dir, exist_ok=True)
         voltage_df = pd.DataFrame(self.V, columns=[f'Bus_{i+2}' for i in range(self.n_buses-1)])
         voltage_df.to_csv(f'{output_dir}/voltage_data.csv', index=False)
-        voltage_outage_df = pd.DataFrame(self.V_outage, columns=[f'Bus_{i+2}' for i in range(self.n_buses-1)])  # Bus 1 is removed
+        voltage_outage_df = pd.DataFrame(self.V_outage, columns=[f'Bus_{i+2}' for i in range(self.n_buses-1)])
         voltage_outage_df.to_csv(f'{output_dir}/voltage_data_outage.csv', index=False)
 
         self.plot(f'{output_dir}/voltage_data.png')
