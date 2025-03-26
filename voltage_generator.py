@@ -16,6 +16,7 @@ class DistributionNetwork:
         parser.add_argument('--shunt', '-s', type=float, default=0.001, help='Shunt admittance at each bus')
         parser.add_argument('--admittance_range', type=float, nargs='+', default=[0.4,0.6], help='Range of branch admittance')
         parser.add_argument('--indiv_current', '-i', action='store_true', help='Generate individual current injections')
+        parser.add_argument('--noisy', '-n', action='store_true', help='Add noise to the voltage data')
         return parser
 
     def __init__(self, args):
@@ -23,6 +24,7 @@ class DistributionNetwork:
         self.time_steps = args.time_steps
         self.outage_branch_idx = args.outage_branch
         self.shunt_value = args.shunt
+        self.is_noisy = args.noisy
 
         self.filename = self.file_path.split('/')[-1]
         self.structure = self._read_data(self.file_path)
@@ -121,6 +123,12 @@ class DistributionNetwork:
 
         # I的尺寸为 (time_steps, n_buses-1)
         V = I @ Y_inv
+
+        if self.is_noisy:
+            # 添加噪声
+            noise = np.random.normal(0, 0.01, size=V.shape)
+            V += noise
+
         return V, Y_reduced
 
     def outage(self, incidence_admittance, Y_e, branch_indices=None):
@@ -223,6 +231,10 @@ class DistributionNetwork:
         保存模拟数据
         """
         subfolder = self.filename.split('.')[-2]
+
+        if self.is_noisy:
+            subfolder += '_noisy'
+
         output_dir = f'data/{subfolder}'
         os.makedirs(output_dir, exist_ok=True)
         voltage_df = pd.DataFrame(self.V, columns=[f'Bus_{i+2}' for i in range(self.n_buses-1)])
