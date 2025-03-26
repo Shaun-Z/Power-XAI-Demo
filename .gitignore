@@ -1,6 +1,6 @@
 # Output files
 checkpoints*/
-results*/
+*results*/
 *.pth
 
 # Local configuration
