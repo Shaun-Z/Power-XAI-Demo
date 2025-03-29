@@ -58,7 +58,7 @@ def load_dataset_and_model(args):
         model = LSTMClassifier(dataset.n_buses).to(device)
     
     # Load model weights
-    model.load_state_dict(torch.load(f'{args.checkpoint_dir}/{args.model}_model.pth', weights_only=True))
+    model.load_state_dict(torch.load(f'{args.checkpoint_dir}/{args.dataset}/{args.model}_model.pth', weights_only=True))
     model.eval()
     
     return dataset, train_dataset, test_dataset, feature_names, model, device

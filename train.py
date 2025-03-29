@@ -29,8 +29,6 @@ def parse_args():
 
 def train(model, train_loader, test_loader, criterion, optimizer, epochs, device, model_path):
     best_train_loss = float('inf')
-
-    os.makedirs('checkpoints', exist_ok=True)
     
     for epoch in range(epochs):
         # Training phase
@@ -66,7 +64,7 @@ def train(model, train_loader, test_loader, criterion, optimizer, epochs, device
         # Save model if train loss improves
         if train_loss < best_train_loss:
             best_train_loss = train_loss
-            torch.save(model.state_dict(), 'model_path')
+            torch.save(model.state_dict(), model_path)
             print(f"Model saved to {model_path}")
 
 def evaluate(model, data_loader, device, name="Test"):
@@ -158,7 +156,9 @@ if __name__ == "__main__":
     
     # Train model
     print(f"Starting training for {args.epochs} epochs...")
-    model_path = f"{args.checkpoint_dir}/{args.model}_model.pth"
+    os.makedirs(f"{args.checkpoint_dir}/{args.dataset}", exist_ok=True)
+
+    model_path = f"{args.checkpoint_dir}/{args.dataset}/{args.model}_model.pth"
     train(model, train_loader, test_loader, criterion, optimizer, args.epochs, device, model_path)
     
     # Load best model and evaluate
