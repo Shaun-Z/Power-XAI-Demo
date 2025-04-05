@@ -186,3 +186,13 @@ if __name__ == "__main__":
     # Generate SHAP plots
     shap_values = generate_shap_plots(explainer, label_1_samples, output_dir)
     print(f"SHAP analysis completed. Plots saved to {output_dir}")
+
+    # Test model accuracy on label_1_samples
+    correct_count = 0
+    for sample in label_1_samples:
+        pred = wrapper_fn(sample)
+        if pred == 1:  # Since these are label 1 samples, prediction should be 1
+            correct_count += 1
+
+    accuracy = correct_count / len(label_1_samples)
+    print(f"Model accuracy on label_1_samples: {accuracy:.4f} ({correct_count}/{len(label_1_samples)})")
