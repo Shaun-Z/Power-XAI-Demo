@@ -124,7 +124,7 @@ def create_shap_explainer(wrapper_fn, background, feature_names):
 
 def generate_shap_plots(explainer, label_1_samples, output_dir):
     # Compute SHAP values
-    shap_values = explainer(label_1_samples.squeeze())
+    shap_values = explainer(label_1_samples.squeeze(), outputs='raw')
     
     # Beeswarm plot
     plt.figure(figsize=(10, 6))
@@ -142,7 +142,7 @@ def generate_shap_plots(explainer, label_1_samples, output_dir):
     
     # Heatmap
     plt.figure(figsize=(10, 6))
-    shap.plots.heatmap(shap_values, max_display=6, show=False)
+    shap.plots.heatmap(shap_values, max_display=6, show=False, feature_order=np.array([*range(71, 122), *range(0, 71)]))
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, 'shap_heatmap.png'))
     plt.close()
